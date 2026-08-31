@@ -22,3 +22,15 @@ pub fn extract_ch_number(s: &str) -> Option<f32> {
 	let num_str = &s[start..end];
 	num_str.parse().ok()
 }
+
+// the reader declares its ids in an inline script, e.g.
+// <script>window.MangaId =  133 ;window.CNumber =  10 </script>
+pub fn read_window_number(data: &str, name: &str, fractional: bool) -> Option<String> {
+	let after = &data[data.find(name)? + name.len()..];
+	let after_eq = after[after.find('=')? + 1..].trim_start();
+	let end = after_eq
+		.find(|c: char| !c.is_ascii_digit() && !(fractional && c == '.'))
+		.unwrap_or(after_eq.len());
+	let number = after_eq[..end].trim();
+	(!number.is_empty()).then(|| number.into())
+}

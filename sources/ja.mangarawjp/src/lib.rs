@@ -104,7 +104,11 @@ impl Source for MangaRawJP {
 		}
 
 		if needs_chapters {
-			manga.chapters = html.select(".ch-list li a").map(|elements| {
+			// a missing list is the page not loading; an entry with no chapters still renders one
+			let elements = html
+				.select(".ch-list li a")
+				.ok_or_else(|| error!("No chapter list for manga {}", manga.key))?;
+			manga.chapters = Some(
 				elements
 					.filter_map(|element| {
 						let url = element.attr("abs:href")?;
@@ -118,8 +122,8 @@ impl Source for MangaRawJP {
 							..Default::default()
 						})
 					})
-					.collect::<Vec<_>>()
-			});
+					.collect(),
+			);
 		}
 
 		Ok(manga)
@@ -131,37 +135,17 @@ impl Source for MangaRawJP {
 
 		// the reader is empty and pulls the image list from the api, keyed by ids an inline
 		// script declares
-		// e.g. <script>window.MangaId =  133 ;window.CNumber =  10 </script>
 		let mut manga_id_opt: Option<String> = None;
 		let mut chapter_num_opt: Option<String> = None;
 		if let Some(scripts) = html.select("script") {
 			for script in scripts {
-				if let Some(data) = script.data() {
-					if let Some(pos) = data.find("window.MangaId") {
-						let after = &data[pos + 14..]; // after "window.MangaId"
-						if let Some(eq_pos) = after.find('=') {
-							let after_eq = after[eq_pos + 1..].trim_start();
-							let end = after_eq
-								.find(|c: char| !c.is_ascii_digit())
-								.unwrap_or(after_eq.len());
-							let num_str = after_eq[..end].trim();
-							if !num_str.is_empty() {
-								manga_id_opt = Some(num_str.into());
-							}
-						}
+				// the parser leaves script node data empty; read the body as inner html
+				if let Some(data) = script.html() {
+					if let Some(id) = read_window_number(&data, "window.MangaId", false) {
+						manga_id_opt = Some(id);
 					}
-					if let Some(pos) = data.find("window.CNumber") {
-						let after = &data[pos + 14..]; // after "window.CNumber"
-						if let Some(eq_pos) = after.find('=') {
-							let after_eq = after[eq_pos + 1..].trim_start();
-							let end = after_eq
-								.find(|c: char| !c.is_ascii_digit() && c != '.')
-								.unwrap_or(after_eq.len());
-							let num_str = after_eq[..end].trim();
-							if !num_str.is_empty() {
-								chapter_num_opt = Some(num_str.into());
-							}
-						}
+					if let Some(number) = read_window_number(&data, "window.CNumber", true) {
+						chapter_num_opt = Some(number);
 					}
 					if manga_id_opt.is_some() && chapter_num_opt.is_some() {
 						break;
@@ -175,7 +159,10 @@ impl Source for MangaRawJP {
 		let api_url = format!("{BASE_URL}/api/v1/get/c");
 		let body = format!("{{\"m\":{manga_id},\"n\":{chapter_num}}}");
 
-		let response = Request::post(&api_url)?
+		let ChapterApiResponse {
+			c: order_key,
+			e: paths,
+		} = Request::post(&api_url)?
 			.body(body)
 			.header("Content-Type", "application/json")
 			.header("Accept", "application/json, text/plain, */*")
@@ -183,21 +170,24 @@ impl Source for MangaRawJP {
 			.send()?
 			.get_json::<ChapterApiResponse>()?;
 
-		let pages = response
-			.e
+		// an empty list is the api failing rather than a chapter with no pages
+		if paths.is_empty() {
+			bail!("No pages found for chapter {}", chapter.key);
+		}
+
+		// the descrambling key is per chapter, so every page context gets a copy
+		Ok(paths
 			.into_iter()
 			.map(|path| {
 				let img_url = format!("{IMG_CDN}{path}");
 				let mut context = PageContext::new();
-				context.insert("key".into(), response.c.clone());
+				context.insert("key".into(), order_key.clone());
 				Page {
 					content: PageContent::url_context(img_url, context),
 					..Default::default()
 				}
 			})
-			.collect::<Vec<_>>();
-
-		Ok(pages)
+			.collect())
 	}
 }
 
@@ -299,6 +289,9 @@ impl PageImageProcessor for MangaRawJP {
 			.collect();
 
 		let cols = parts.len().isqrt();
+		if cols == 0 || cols * cols != parts.len() {
+			bail!("Page order is not a square grid");
+		}
 
 		let image_width = response.image.width();
 		let image_height = response.image.height();
@@ -525,6 +518,30 @@ mod test {
 			result.entries.is_empty() && !result.has_next_page,
 			"out of range page should end pagination"
 		);
+	}
+
+	// the chapter list and the page api are the two paths the app needs and neither had
+	// coverage: a missing list used to leave the entry with no chapters at all, and an
+	// empty api answer used to reach the reader as a chapter with no pages
+	#[aidoku_test]
+	fn test_chapters_and_pages() {
+		let manga = browse(SORT_UPDATED, 1)
+			.entries
+			.into_iter()
+			.next()
+			.expect("browse should return entries");
+
+		let mut manga = MangaRawJP
+			.get_manga_update(manga, true, true)
+			.expect("details request should succeed");
+		let chapters = manga.chapters.take().expect("chapters should be returned");
+		assert!(!chapters.is_empty(), "no chapters returned");
+
+		let chapter = chapters.into_iter().next().expect("a chapter");
+		let pages = MangaRawJP
+			.get_page_list(manga, chapter)
+			.expect("page list request should succeed");
+		assert!(!pages.is_empty(), "no pages returned");
 	}
 
 	// an option that doesn't change the order means the filter is a no-op
