@@ -72,7 +72,12 @@ impl Source for MangaRawBest {
 		qs.push("sort", Some(sort));
 		qs.push("page", Some(&page.to_string()));
 
-		if let Some(query) = query.as_deref().map(str::trim) {
+		// an empty filter value narrows nothing, so the parameter is left off
+		if let Some(query) = query
+			.as_deref()
+			.map(str::trim)
+			.filter(|query| !query.is_empty())
+		{
 			qs.push(&format!("filter[{search_type}]"), Some(query));
 		}
 
@@ -153,6 +158,16 @@ impl Source for MangaRawBest {
 					.collect::<Vec<Page>>()
 			})
 			.unwrap_or_default();
+
+		// the reader markup is the same for a missing chapter, so no images means the
+		// request failed rather than that the chapter is empty
+		if pages.is_empty() {
+			bail!(
+				"no pages for chapter {} of manga {}",
+				chapter.key,
+				manga.key
+			);
+		}
 
 		Ok(pages)
 	}
