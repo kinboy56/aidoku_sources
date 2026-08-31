@@ -205,6 +205,16 @@ impl Source for Rawdevart {
 			})
 			.unwrap_or_default();
 
+		// the markup is served even for chapters the site has no images for, so an empty
+		// result is a parsing failure rather than an empty chapter
+		if pages.is_empty() {
+			bail!(
+				"no pages for chapter {} of manga {}",
+				chapter.key,
+				manga.key
+			);
+		}
+
 		Ok(pages)
 	}
 }
