@@ -4,7 +4,7 @@ use aidoku::{
 	alloc::{String, vec::Vec},
 };
 use aidoku_test::aidoku_test;
-use mangareader::helper::slice_count;
+use mangareader::slice_count;
 
 const STACKED_MANGA_KEY: &str = "/manga/小林さんちのメイドラゴン-イルルは恋とかわかりません！-raw/";
 const PAGED_MANGA_KEY: &str = "/manga/せっかく農家に転生したので勇者は目指しません-raw/";

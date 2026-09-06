@@ -4,7 +4,7 @@ use aidoku::{
 	alloc::{String, vec::Vec},
 };
 use aidoku_test::aidoku_test;
-use mangareader::helper::slice_count;
+use mangareader::slice_count;
 
 const STACKED_MANGA_KEY: &str = "/read/お風呂はまた明日-raw/";
 const PAGED_MANGA_KEY: &str = "/read/せっかく農家に転生したので勇者は目指しません-raw/";

@@ -9,10 +9,11 @@ use aidoku::{
 	prelude::*,
 };
 
-pub mod helper;
+mod helper;
 mod imp;
 pub mod parser;
 
+pub use helper::slice_count;
 pub use imp::Impl;
 
 pub struct Params {
