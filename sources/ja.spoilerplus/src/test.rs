@@ -1,9 +1,6 @@
 use super::*;
-use aidoku::{DeepLinkHandler, FilterValue, MangaPageResult, alloc::vec};
+use aidoku::{DeepLinkHandler, Listing, ListingProvider, MangaPageResult};
 use aidoku_test::aidoku_test;
-
-const SORT_UPDATED: i32 = 0;
-const SORT_RANKING: i32 = 1;
 
 const SERIES_KEY: &str = "/HUNTER X HUNTER-raw-free/";
 
@@ -11,18 +8,16 @@ fn source() -> WpComics<SpoilerPlus> {
 	WpComics::new()
 }
 
-fn sort(index: i32) -> Vec<FilterValue> {
-	vec![FilterValue::Sort {
-		id: String::from("sort"),
-		index,
-		ascending: false,
-	}]
-}
-
-fn browse(index: i32, page: i32) -> MangaPageResult {
+fn listing(id: &str, page: i32) -> MangaPageResult {
 	source()
-		.get_search_manga_list(None, page, sort(index))
-		.expect("browse request should succeed")
+		.get_manga_list(
+			Listing {
+				id: id.into(),
+				..Default::default()
+			},
+			page,
+		)
+		.expect("listing request should succeed")
 }
 
 fn series() -> Manga {
@@ -47,39 +42,59 @@ fn leading_keys(result: &MangaPageResult) -> Vec<&String> {
 		.collect()
 }
 
-// the app sends no filter value until one is picked
 #[aidoku_test]
-fn test_sort_index_falls_back_to_the_first_option() {
-	assert_eq!(sort_index(&[]), SORT_UPDATED);
-	assert_eq!(sort_index(&sort(SORT_RANKING)), SORT_RANKING);
-}
-
-#[aidoku_test]
-fn test_sort_updated() {
+fn test_listing_latest() {
 	assert!(
-		!browse(SORT_UPDATED, 1).entries.is_empty(),
-		"updates ordering should return entries"
+		!listing("latest", 1).entries.is_empty(),
+		"latest listing should return entries"
 	);
 }
 
 #[aidoku_test]
-fn test_sort_updated_page_2() {
+fn test_listing_latest_page_2() {
 	assert!(
-		!browse(SORT_UPDATED, 2).entries.is_empty(),
-		"updates ordering page 2 should return entries"
+		!listing("latest", 2).entries.is_empty(),
+		"latest listing page 2 should return entries"
 	);
 }
 
 #[aidoku_test]
-fn test_sort_ranking() {
+fn test_listing_ranking() {
 	assert!(
-		!browse(SORT_RANKING, 1).entries.is_empty(),
-		"ranking ordering should return entries"
+		!listing("ranking", 1).entries.is_empty(),
+		"ranking listing should return entries"
+	);
+}
+
+// the trending page has no pager, so the app must not be told to ask for more
+#[aidoku_test]
+fn test_listing_trending_is_a_single_page() {
+	let result = listing("trending", 1);
+	assert!(
+		!result.entries.is_empty(),
+		"trending listing should return entries"
+	);
+	assert!(!result.has_next_page, "trending should not paginate");
+}
+
+#[aidoku_test]
+fn test_unknown_listing_errors() {
+	assert!(
+		source()
+			.get_manga_list(
+				Listing {
+					id: "nope".into(),
+					..Default::default()
+				},
+				1
+			)
+			.is_err(),
+		"an unknown listing should not fall back to another path"
 	);
 }
 
 #[aidoku_test]
-fn test_browse_without_filters() {
+fn test_browse_without_query() {
 	let result = source()
 		.get_search_manga_list(None, 1, Vec::new())
 		.expect("browse request should succeed");
@@ -94,25 +109,11 @@ fn test_search() {
 	assert!(!result.entries.is_empty(), "search should return entries");
 }
 
-#[aidoku_test]
-fn test_query_takes_precedence_over_sort() {
-	let searched = source()
-		.get_search_manga_list(Some(String::from("ワンピース")), 1, sort(SORT_RANKING))
-		.expect("search request should succeed");
-	let ranking = browse(SORT_RANKING, 1);
-	assert!(!searched.entries.is_empty(), "search should return entries");
-	assert_ne!(
-		leading_keys(&searched),
-		leading_keys(&ranking),
-		"a query should search rather than fall back to the ranking path"
-	);
-}
-
-// the updates ordering starts at the home page, which stacks a carousel and a
+// the latest listing starts at the home page, which stacks a carousel and a
 // ranking block around the paginated list
 #[aidoku_test]
-fn test_updated_page_1_holds_only_the_paginated_block() {
-	let result = browse(SORT_UPDATED, 1);
+fn test_latest_page_1_holds_only_the_paginated_block() {
+	let result = listing("latest", 1);
 
 	let mut keys = result
 		.entries
@@ -133,7 +134,7 @@ fn test_updated_page_1_holds_only_the_paginated_block() {
 
 #[aidoku_test]
 fn test_keys_stay_relative_and_covers_absolute() {
-	let result = browse(SORT_UPDATED, 1);
+	let result = listing("latest", 1);
 
 	for manga in &result.entries {
 		assert!(
@@ -151,7 +152,7 @@ fn test_keys_stay_relative_and_covers_absolute() {
 
 #[aidoku_test]
 fn test_pagination_ends() {
-	let result = browse(SORT_UPDATED, 9999);
+	let result = listing("latest", 9999);
 	assert!(
 		result.entries.is_empty() && !result.has_next_page,
 		"out of range page should end pagination"
@@ -159,13 +160,19 @@ fn test_pagination_ends() {
 }
 
 #[aidoku_test]
-fn test_sorts_return_different_orders() {
-	let updated = browse(SORT_UPDATED, 1);
-	let ranking = browse(SORT_RANKING, 1);
+fn test_listings_return_different_orders() {
+	let latest = listing("latest", 1);
+	let trending = listing("trending", 1);
+	let ranking = listing("ranking", 1);
 	assert_ne!(
-		leading_keys(&updated),
+		leading_keys(&latest),
 		leading_keys(&ranking),
-		"the sort options should not resolve to the same order"
+		"latest and ranking should not resolve to the same order"
+	);
+	assert_ne!(
+		leading_keys(&trending),
+		leading_keys(&ranking),
+		"trending and ranking should not resolve to the same order"
 	);
 }
 

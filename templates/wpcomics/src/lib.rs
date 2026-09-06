@@ -1,8 +1,9 @@
 #![no_std]
 use aidoku::{
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
-	FilterValue, Home, HomeLayout, ImageRequestProvider, ImageResponse, ListingProvider, Manga,
-	MangaPageResult, MangaStatus, Page, PageContext, PageImageProcessor, Result, Source, Viewer,
+	FilterValue, Home, HomeLayout, ImageRequestProvider, ImageResponse, Listing, ListingProvider,
+	Manga, MangaPageResult, MangaStatus, Page, PageContext, PageImageProcessor, Result, Source,
+	Viewer,
 	alloc::{String, Vec, borrow::Cow},
 	imports::{canvas::ImageRef, html::Element, net::Request},
 	prelude::*,
@@ -77,6 +78,7 @@ pub struct Params {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<String>,
+	pub get_listing_url: fn(params: &Params, listing: &Listing, page: i32) -> Result<String>,
 
 	pub home_manga_link: &'static str,
 	pub home_chapter_link: &'static str,
@@ -217,6 +219,7 @@ impl Default for Params {
 			get_search_url: |params, query, page, filters| {
 				get_search_url(params, query, page, filters)
 			},
+			get_listing_url: |_, _, _| Err(AidokuError::Unimplemented),
 
 			home_manga_link: ".book_info a",
 			home_chapter_link: ".last_chapter a, .chapter-item a",
@@ -298,8 +301,10 @@ impl<T: Impl> Source for WpComics<T> {
 }
 
 impl<T: Impl> ListingProvider for WpComics<T> {
-	fn get_manga_list(&self, _listing: aidoku::Listing, _page: i32) -> Result<MangaPageResult> {
-		Err(AidokuError::Unimplemented)
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		let url = (self.params.get_listing_url)(&self.params, &listing, page)?;
+		let mut cache = self.cache.borrow_mut();
+		self.inner.get_manga_list(&mut cache, &self.params, url)
 	}
 }
 

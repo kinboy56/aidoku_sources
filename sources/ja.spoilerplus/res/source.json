@@ -2,13 +2,24 @@
 	"info": {
 		"id": "ja.spoilerplus",
 		"name": "SpoilerPlus",
-		"version": 1,
+		"version": 2,
 		"url": "https://spoilerplus.tv",
 		"contentRating": 2,
 		"languages": ["ja"],
 		"minAppVersion": "0.7.1"
 	},
-	"config": {
-		"hidesFiltersWhileSearching": true
-	}
+	"listings": [
+		{
+			"id": "latest",
+			"name": "最近の更新"
+		},
+		{
+			"id": "trending",
+			"name": "トレンド"
+		},
+		{
+			"id": "ranking",
+			"name": "ランキング"
+		}
+	]
 }

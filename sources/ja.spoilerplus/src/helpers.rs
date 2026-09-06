@@ -1,5 +1,4 @@
 use aidoku::{
-	FilterValue,
 	alloc::string::String,
 	helpers::uri::{decode_uri, encode_uri},
 	prelude::format,
@@ -34,16 +33,6 @@ pub fn to_key(href: &str) -> Option<String> {
 // raw utf-8 paths are answered with a 404, so keys are encoded on the way out
 pub fn url_for(key: &str) -> String {
 	format!("{BASE_URL}{}", encode_uri(key))
-}
-
-pub fn sort_index(filters: &[FilterValue]) -> i32 {
-	filters
-		.iter()
-		.find_map(|filter| match filter {
-			FilterValue::Sort { index, .. } => Some(*index),
-			_ => None,
-		})
-		.unwrap_or(0)
 }
 
 pub fn read_window_number(data: &str, name: &str, fractional: bool) -> Option<String> {

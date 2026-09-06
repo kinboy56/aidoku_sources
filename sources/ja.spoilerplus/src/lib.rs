@@ -76,18 +76,20 @@ impl Impl for SpoilerPlus {
 			manga_page: |_, manga| url_for(&manga.key),
 			page_list_page: |_, _, chapter| url_for(&chapter.key),
 
-			get_search_url: |params, query, page, filters| {
-				// search has its own endpoint, so a query wins over the sort filter
-				if let Some(query) = query {
-					let query = encode_uri_component(query);
-					return Ok(format!("{}?s={query}&page={page}", params.base_url));
-				}
+			get_search_url: |params, query, page, _| {
+				let Some(query) = query else {
+					return Ok(format!("{}/page/{page}/", params.base_url));
+				};
+				let query = encode_uri_component(query);
+				Ok(format!("{}?s={query}&page={page}", params.base_url))
+			},
 
-				// no sort parameter: each ordering is served from its own path
-				Ok(match sort_index(&filters) {
-					1 => format!("{}/ranking/{page}/", params.base_url),
-					_ => format!("{}/page/{page}/", params.base_url),
-				})
+			get_listing_url: |params, listing, page| match listing.id.as_str() {
+				"latest" => Ok(format!("{}/page/{page}/", params.base_url)),
+				// trending has no pager and serves the same block for every page
+				"trending" => Ok(format!("{}/trending/", params.base_url)),
+				"ranking" => Ok(format!("{}/ranking/{page}/", params.base_url)),
+				id => Err(error!("Unknown listing {id}")),
 			},
 
 			..Default::default()
@@ -296,6 +298,7 @@ impl Impl for SpoilerPlus {
 
 register_source!(
 	WpComics<SpoilerPlus>,
+	ListingProvider,
 	PageImageProcessor,
 	ImageRequestProvider,
 	DeepLinkHandler
