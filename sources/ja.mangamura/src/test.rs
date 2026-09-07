@@ -31,9 +31,8 @@ fn fetch_chapter(key: &str, number: f32) -> (Manga, Chapter) {
 	(manga, chapter)
 }
 
-// The site links entries with absolute urls, so keys are only stripped down
-// to paths when BASE_URL matches the live domain. A stale domain silently
-// turns every key into a full url and breaks details and chapter lists.
+// entries are linked with absolute urls, so a stale BASE_URL leaves every key a full url and
+// breaks details and chapter lists
 #[aidoku_test]
 fn search_returns_path_keys() {
 	let result = source()
@@ -160,8 +159,7 @@ fn home_has_entries() {
 	assert!(filled > 2, "only {filled} components carry entries");
 }
 
-// every chapter name on the site repeats the number, either bare, with a volume suffix, or
-// wrapped in the seo heading, so nothing is left to show as a title
+// every chapter name repeats the number, bare or with a volume suffix or the seo heading
 #[aidoku_test]
 fn chapters_carry_no_title() {
 	let manga = Manga {

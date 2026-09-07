@@ -3,8 +3,7 @@ use aidoku::{Source, alloc::borrow::Cow, prelude::*};
 use mangareader::{Impl, MangaReader, Params};
 
 const BASE_URL: &str = "https://rawotaku.com";
-// some chapters ship as one tall jpeg stacking every page into it. a page stands about 1.42
-// times its width here, measured across the stacked images the site serves
+// some chapters ship as one tall jpeg; a page stands about 1.42 times its width here
 const PAGE_ASPECT: f32 = 1.42;
 
 struct RawOtaku;
@@ -22,8 +21,7 @@ impl Impl for RawOtaku {
 			page_param: "p".into(),
 			get_chapter_selector: || "#ja-chaps > li".into(),
 			get_chapter_language: |_| "ja".into(),
-			// the chapter name only ever repeats the number, sometimes with a volume suffix or the
-			// seo heading wrapped around it
+			// chapter names only ever repeat the number
 			has_chapter_titles: false,
 			get_page_url_path: |chapter_id| format!("/json/chapter?id={chapter_id}&mode=vertical"),
 			set_default_filters: |query_params| {

@@ -34,7 +34,7 @@ pub struct Params {
 	pub get_page_url_path: fn(&str) -> String,
 	pub set_default_filters: fn(&mut QueryParameters) -> (),
 	// some sites stack every page of a chapter into one tall image. set to how many times its
-	// width a page stands to have those measured and handed over a slice at a time
+	// width a page stands to have those sliced apart
 	pub stacked_page_ratio: Option<f32>,
 }
 

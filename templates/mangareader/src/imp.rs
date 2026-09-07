@@ -19,8 +19,7 @@ use aidoku::{
 	prelude::*,
 };
 
-// a chapter that stacks its pages into one image holds a couple of them at most, so a chapter
-// with a page per image never pays for the requests that measure them
+// a stacked chapter holds a couple of images at most; past this, skip the measuring requests
 const STACKED_IMAGE_LIMIT: usize = 4;
 
 pub trait Impl {
@@ -155,14 +154,14 @@ pub trait Impl {
 		let html_text = json["html"].as_str().unwrap_or_default();
 		let html = Html::parse_fragment(html_text)?;
 
-		let images: Vec<(String, bool)> = html
+		let images: Vec<String> = html
 			.select(&params.page_selector)
 			.map(|els| {
 				els.filter_map(|el| {
 					let url = el
 						.img_attr()
 						.or_else(|| el.select_first("img").and_then(|img| img.img_attr()))?;
-					Some((String::from(url.trim()), el.has_class("shuffled")))
+					Some(String::from(url.trim()))
 				})
 				.collect()
 			})
@@ -170,7 +169,7 @@ pub trait Impl {
 
 		let measure = params.stacked_page_ratio.is_some() && images.len() <= STACKED_IMAGE_LIMIT;
 		let mut pages = Vec::with_capacity(images.len());
-		for (url, shuffled) in images {
+		for url in images {
 			let slices = match params.stacked_page_ratio {
 				Some(ratio) if measure => stacked_page_count(&url, ratio),
 				_ => 1,
@@ -178,13 +177,7 @@ pub trait Impl {
 
 			if slices < 2 {
 				pages.push(Page {
-					content: if shuffled {
-						let mut context = PageContext::default();
-						context.insert("shuffled".into(), "1".into());
-						PageContent::url_context(url, context)
-					} else {
-						PageContent::url(url)
-					},
+					content: PageContent::url(url),
 					..Default::default()
 				});
 				continue;
@@ -192,9 +185,6 @@ pub trait Impl {
 
 			for slice in 0..slices {
 				let mut context = PageContext::default();
-				if shuffled {
-					context.insert("shuffled".into(), "1".into());
-				}
 				context.insert("slice".into(), slice.to_string());
 				context.insert("slices".into(), slices.to_string());
 				pages.push(Page {
@@ -443,14 +433,12 @@ pub trait Impl {
 
 		let width = response.image.width();
 		let height = response.image.height() as u32;
-		// whole pixel rows: the app's crop rounds a fractional rect, which would draw a row twice
-		// or drop it at the boundary between two slices
+		// integer rows: the app rounds a fractional rect, doubling or dropping a row at the seam
 		let top = height * slice / slices;
 		let bottom = height * (slice + 1) / slices;
 		let (top, slice_height) = (top as f32, (bottom - top) as f32);
 
-		// the canvas has to match the slice: app versions before the AidokuRunner fix in e44d774
-		// placed the destination rect off any canvas shorter than the image, drawing nothing
+		// before the AidokuRunner fix in e44d774 a canvas shorter than the image drew nothing
 		let mut canvas = Canvas::new(width, slice_height);
 		canvas.copy_image(
 			&response.image,

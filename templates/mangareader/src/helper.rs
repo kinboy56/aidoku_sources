@@ -6,8 +6,7 @@ use aidoku::{
 
 // enough to reach the frame header unless the file leads with a large colour profile
 const HEADER_BYTES: usize = 16 * 1024;
-// the deepest stacked image measured holds 57 pages. a count past this comes from a misread
-// header rather than an image that deep, and slicing on it would hand the reader slivers
+// the deepest stacked image measured holds 57 pages; past this the header was misread
 const STACKED_PAGE_LIMIT: u32 = 64;
 
 pub trait ElementImageAttr {
@@ -44,16 +43,10 @@ fn image_size(url: &str) -> Option<(u32, u32)> {
 pub fn slice_count(width: u32, height: u32, page_ratio: f32) -> u32 {
 	let page_height = width as f32 * page_ratio;
 	let pages = height as f32 / page_height;
-	// `f32::round` is not in core. a width of zero divides into infinity, which saturates to
-	// `u32::MAX` and falls past the limit below rather than wrapping
 	let rounded = (pages + 0.5) as u32;
 	if !(2..=STACKED_PAGE_LIMIT).contains(&rounded) {
 		return 1;
 	}
-
-	// the site cuts its pages at a whole pixel, so the neighbour the ratio leans towards beats it
-	// when the image divides evenly there: 1403x38912 sits at 19.53 pages and rounds to 20, where
-	// 19 leaves a page of exactly 2048 and 20 cuts every one of them
 	let neighbour = if pages < rounded as f32 {
 		rounded - 1
 	} else {
@@ -67,7 +60,7 @@ pub fn slice_count(width: u32, height: u32, page_ratio: f32) -> u32 {
 	rounded
 }
 
-// the stacked images are jpeg; webp caps a side at 16383 pixels, too short to stack a chapter into
+// stacked images are jpeg: webp caps a side at 16383 pixels, too short to stack a chapter into
 fn jpeg_size(head: &[u8]) -> Option<(u32, u32)> {
 	fn length(head: &[u8], at: usize) -> Option<usize> {
 		Some(usize::from(u16::from_be_bytes([
@@ -83,11 +76,11 @@ fn jpeg_size(head: &[u8]) -> Option<(u32, u32)> {
 	let mut index = 2;
 	while *head.get(index)? == 0xFF {
 		match *head.get(index + 1)? {
-			// padding written ahead of the next marker
+			// padding ahead of the next marker
 			0xFF => index += 1,
-			// markers standing on their own, without a segment behind them
+			// markers with no segment behind them
 			0x01 | 0xD0..=0xD9 => index += 2,
-			// a frame header, which opens with the precision and then the size of the image
+			// frame header: precision, then the size
 			0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => {
 				let height = length(head, index + 5)?.try_into().ok()?;
 				let width = length(head, index + 7)?.try_into().ok()?;

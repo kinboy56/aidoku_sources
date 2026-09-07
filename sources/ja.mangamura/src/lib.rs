@@ -3,10 +3,7 @@ use aidoku::{Source, alloc::borrow::Cow, prelude::*};
 use mangareader::{Impl, MangaReader, Params};
 
 const BASE_URL: &str = "https://mangamura.me";
-// some chapters ship as one tall jpeg stacking every page into it. a page stands about 1.42 times
-// its width here: across 33 stacked images the ratio ran from 1.39 to 1.44, and the nominal b5 √2
-// rounds 1115x56000 up to 36 pages, where 56000/35 lands on a whole 1600 like every other page
-// height read off the site
+// some chapters ship as one tall jpeg; across 33 of them a page ran 1.39 to 1.44 times its width
 const PAGE_ASPECT: f32 = 1.42;
 
 struct MangaMura;
@@ -26,8 +23,7 @@ impl Impl for MangaMura {
 			page_param: "p".into(),
 			get_chapter_selector: || "#ja-chaps > li".into(),
 			get_chapter_language: |_| "ja".into(),
-			// the chapter name only ever repeats the number, sometimes with a volume suffix or the
-			// seo heading wrapped around it
+			// chapter names only ever repeat the number
 			has_chapter_titles: false,
 			get_page_url_path: |chapter_id| format!("/json/chapter?id={chapter_id}&mode=vertical"),
 			set_default_filters: |query_params| {
