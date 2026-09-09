@@ -2,10 +2,11 @@
 	"info": {
 		"id": "ja.mangamura",
 		"name": "Manga Mura",
-		"version": 3,
+		"version": 4,
 		"url": "https://mangamura.me",
 		"contentRating": 1,
-		"languages": ["ja"]
+		"languages": ["ja"],
+		"minAppVersion": "0.9"
 	},
 	"listings": [
 		{
